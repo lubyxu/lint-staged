@@ -70,8 +70,8 @@ Options:
                                      tasks serially (default: true)
   -q, --quiet                        disable lint-staged’s own console output (default: false)
   -r, --relative                     pass relative filepaths to tasks (default: false)
-  -x, --shell                        skip parsing of tasks for better shell support (default:
-                                     false)
+  -x, --shell                        Unsafely skip parsing and run tasks in a real shell
+                                     (default: false)
   -v, --verbose                      show task output even when tasks succeed; by default only
                                      failed output is shown (default: false)
   -h, --help                         display help for command
@@ -89,7 +89,7 @@ Options:
 - **`--no-stash`**: By default a backup stash will be created before running the tasks, and all task modifications will be reverted in case of an error. This option will disable creating the stash, and instead leave all modifications in the index when aborting the commit.
 - **`--quiet`**: Supress all CLI output, except from tasks.
 - **`--relative`**: Pass filepaths relative to `process.cwd()` (where `lint-staged` runs) to tasks. Default is `false`.
-- **`--shell`**: By default linter commands will be parsed for speed and security. This has the side-effect that regular shell scripts might not work as expected. You can skip parsing of commands with this option.
+- **`--shell`**: By default linter commands will be parsed for speed and security. This has the side-effect that regular shell scripts might not work as expected. You can skip parsing of commands with this option. **Using this option is not recommended since it can lead to issues like cross-platform errors, or even command injection!**
 - **`--verbose`**: Show task output even when tasks succeed. By default only failed output is shown.
 
 ## Configuration
@@ -197,12 +197,22 @@ When supplying configuration in JS format it is possible to define the task as a
 type TaskFn = (filenames: string[]) => string | string[] | Promise<string | string[]>
 ```
 
+### Example: Run eslint on entire repo if more than 10 staged files
+
+```js
+// .lintstagedrc.js
+module.exports = {
+  '**/*.js?(x)': (filenames) =>
+    filenames.length > 10 ? 'eslint .' : `eslint ${filenames.join(' ')}`,
+}
+```
+
 ### Example: Wrap filenames in single quotes and run once per file
 
 ```js
 // .lintstagedrc.js
 module.exports = {
-  '**/*.js?(x)': (filenames) => filenames.map((filename) => `prettier --write '${filename}'`)
+  '**/*.js?(x)': (filenames) => filenames.map((filename) => `prettier --write '${filename}'`),
 }
 ```
 
@@ -211,17 +221,7 @@ module.exports = {
 ```js
 // lint-staged.config.js
 module.exports = {
-  '**/*.ts?(x)': () => 'tsc -p tsconfig.json --noEmit'
-}
-```
-
-### Example: Run eslint on entire repo if more than 10 staged files
-
-```js
-// .lintstagedrc.js
-module.exports = {
-  '**/*.js?(x)': (filenames) =>
-    filenames.length > 10 ? 'eslint .' : `eslint ${filenames.join(' ')}`
+  '**/*.ts?(x)': () => 'tsc -p tsconfig.json --noEmit',
 }
 ```
 
@@ -235,7 +235,7 @@ module.exports = {
   '*': (allFiles) => {
     const match = micromatch(allFiles, ['*.js', '*.ts'])
     return `eslint ${match.join(' ')}`
-  }
+  },
 }
 ```
 
@@ -252,7 +252,7 @@ module.exports = {
     // from `files` filter those _NOT_ matching `*test.js`
     const match = micromatch.not(files, '*test.js')
     return `eslint ${match.join(' ')}`
-  }
+  },
 }
 ```
 
@@ -268,7 +268,24 @@ module.exports = {
     const cwd = process.cwd()
     const relativePaths = absolutePaths.map((file) => path.relative(cwd, file))
     return `ng lint myProjectName --files ${relativePaths.join(' ')}`
-  }
+  },
+}
+```
+
+## About the shell option
+
+By default lint-staged runs the configured task using [execa](https://github.com/sindresorhus/execa#shell), which handles parsing and escaping of the command and its arguments. Lint-staged also supports using execa's `shell` option via the `--shell` flag. This skips parsing and runs the command directly in a shell, `/bin/sh` or `cmd.exe` depending on the current platform.
+
+**Using the shell option is not adviced because it's slower and insecure, and might lead to problems when running on multiple platforms!**
+
+Please note that if you are using the `shell` option with a functional configuration, _lint-staged_ cannot escape the filenames since the function is supposed to generate the entire command string. The default `escape` method can be required for use:
+
+```js
+// .lintstagedrc.js
+const { escape } = require('lint-staged')
+
+module.exports = {
+  '**/*.js?(x)': (filenames) => `eslint ${filenames.map(escape).join(' ')}`,
 }
 ```
 
@@ -454,7 +471,7 @@ const success = await lintStaged({
   relative: false,
   shell: false,
   stash: true,
-  verbose: false
+  verbose: false,
 })
 ```
 
@@ -531,6 +548,6 @@ const cli = new CLIEngine({})
 
 module.exports = {
   '*.js': (files) =>
-    'eslint --max-warnings=0 ' + files.filter((file) => !cli.isPathIgnored(file)).join(' ')
+    'eslint --max-warnings=0 ' + files.filter((file) => !cli.isPathIgnored(file)).join(' '),
 }
 ```
