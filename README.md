@@ -432,6 +432,7 @@ A method to escape a command line argument (typically a filename) for safer usag
 ```js
 const { escape } = require('lint-staged/utils')
 const filename = '/a directory with spaces!/file.js'
+
 console.log(escape(filename)) // '\/a\\ directory\\ with\\ spaces\!\/file\.js'
 ```
 
@@ -439,6 +440,23 @@ console.log(escape(filename)) // '\/a\\ directory\\ with\\ spaces\!\/file\.js'
 
 - Spaces are double-escaped with `\\`. This is because [execa](https://github.com/sindresorhus/execa) has special handling for splitting from spaces.
 - **The escape method currently does nothing when `process.platform === 'win32'`!** If you want to help make it work on Windows, please open let us know!
+
+### `gitAdd`
+
+A method to add file(s) to the git index. This is useful in scripts where a new file should be added as a side-effect.
+_Lint-staged_ only runs `git add` on files that were originally staged, if any tasks modified them while running (like `eslint --fix`).
+
+```js
+const { gitAdd } = require('lint-staged/utils')
+const filename = 'file.js'
+
+await gitAdd(filename)
+```
+
+#### Notes:
+
+- The first argument can be either a single string, or an array of strings.
+- The files can be absolute or relative to the `cwd`. Optionally, provide a different `cwd` in the second argument.
 
 ## Frequently Asked Questions
 
